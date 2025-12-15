@@ -1,0 +1,48 @@
+---
+alwaysApply: true
+description: Guidelines for using shadcn UI components in the project
+---
+
+# shadcn UI Component Guidelines
+
+This project uses **shadcn UI** for all UI elements.
+
+## Initialization
+
+If shadcn UI is not initialized in the project, use the following command:
+
+```bash
+npx shadcn@latest init
+```
+
+## Adding Components
+
+When you need a particular component that is not yet installed, use the following command format:
+
+```bash
+npx shadcn@latest add <component-name>
+```
+
+### Examples
+
+- To install the button component:
+  ```bash
+  npx shadcn@latest add button
+  ```
+
+- To install the card component:
+  ```bash
+  npx shadcn@latest add card
+  ```
+
+- To install the dialog component:
+  ```bash
+  npx shadcn@latest add dialog
+  ```
+
+## Usage Guidelines
+
+- Always use shadcn UI components for UI elements
+- Check if a component is already installed before adding it
+- Components are typically installed in the `components/ui` directory
+- Follow shadcn UI's component API and patterns

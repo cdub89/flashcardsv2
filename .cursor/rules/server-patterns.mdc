@@ -1,0 +1,231 @@
+---
+alwaysApply: true
+---
+# Server-Side Architecture Patterns
+
+This project follows strict separation of concerns for data operations and validation.
+
+## Data Retrieval
+
+**All data fetching MUST be done in Server Components.**
+
+- Never fetch data directly in Client Components
+- Use React Server Components (async components) for data retrieval
+- Data can be passed down to Client Components as props
+
+### Example
+
+```typescript
+// ✅ CORRECT - Server Component fetching data
+import { db } from '@/db';
+import { decksTable } from '@/db/schema';
+import { auth } from '@clerk/nextjs/server';
+import { eq } from 'drizzle-orm';
+
+export default async function DecksPage() {
+  const { userId } = auth();
+  
+  if (!userId) {
+    return <div>Not authenticated</div>;
+  }
+  
+  // Fetch data in Server Component
+  const decks = await db.select()
+    .from(decksTable)
+    .where(eq(decksTable.userId, userId));
+  
+  return <ClientComponent decks={decks} />;
+}
+```
+
+```typescript
+// ❌ WRONG - Client Component trying to fetch data
+'use client';
+
+export default function DecksPage() {
+  const [decks, setDecks] = useState([]);
+  
+  useEffect(() => {
+    fetch('/api/decks').then(/* ... */); // BAD - don't do this
+  }, []);
+  
+  return <div>{/* ... */}</div>;
+}
+```
+
+## Data Mutations
+
+**All database INSERT, UPDATE, and DELETE operations MUST be done through Server Actions.**
+
+- Use the `'use server'` directive to mark Server Actions
+- Never perform mutations directly in API routes or Server Components
+- Server Actions should be defined in separate files (e.g., `actions.ts`)
+
+### Example
+
+```typescript
+// ✅ CORRECT - Server Action for mutations
+'use server';
+
+import { db } from '@/db';
+import { decksTable } from '@/db/schema';
+import { auth } from '@clerk/nextjs/server';
+import { revalidatePath } from 'next/cache';
+import { z } from 'zod';
+
+const createDeckSchema = z.object({
+  name: z.string().min(1).max(100),
+  description: z.string().max(500).optional(),
+});
+
+type CreateDeckInput = z.infer<typeof createDeckSchema>;
+
+export async function createDeck(input: CreateDeckInput) {
+  // Validate input with Zod
+  const validatedData = createDeckSchema.parse(input);
+  
+  // Authenticate
+  const { userId } = auth();
+  if (!userId) {
+    throw new Error('Unauthorized');
+  }
+  
+  // Perform mutation
+  const result = await db.insert(decksTable).values({
+    userId,
+    name: validatedData.name,
+    description: validatedData.description,
+  }).returning();
+  
+  revalidatePath('/decks');
+  return result[0];
+}
+```
+
+```typescript
+// ❌ WRONG - Mutation in API route
+export async function POST(request: Request) {
+  const data = await request.json();
+  await db.insert(decksTable).values(data); // BAD - use Server Actions
+  return Response.json({ success: true });
+}
+```
+
+## Data Validation
+
+**All data MUST be validated using Zod.**
+
+### Server Action Validation Rules
+
+1. **Always define a Zod schema** for input validation
+2. **Always create a TypeScript type** from the schema using `z.infer<typeof schema>`
+3. **NEVER use `FormData` as the parameter type** - always use a properly typed object
+4. **Parse/validate before using** the data with `.parse()` or `.safeParse()`
+
+### Example
+
+```typescript
+'use server';
+
+import { z } from 'zod';
+
+// ✅ CORRECT - Properly typed and validated Server Action
+const updateCardSchema = z.object({
+  cardId: z.string().uuid(),
+  front: z.string().min(1),
+  back: z.string().min(1),
+});
+
+type UpdateCardInput = z.infer<typeof updateCardSchema>;
+
+export async function updateCard(input: UpdateCardInput) {
+  const validatedData = updateCardSchema.parse(input);
+  
+  // ... rest of implementation
+}
+```
+
+```typescript
+// ❌ WRONG - Using FormData without proper typing
+export async function updateCard(formData: FormData) {
+  const cardId = formData.get('cardId'); // BAD - no validation, no type safety
+  // ...
+}
+```
+
+```typescript
+// ❌ WRONG - No validation
+export async function updateCard(input: any) {
+  await db.update(cardsTable).set(input); // BAD - unvalidated data
+}
+```
+
+## Schema Patterns
+
+### Required Elements
+
+Every Server Action that accepts data should include:
+
+1. **Zod Schema Definition**
+   ```typescript
+   const myActionSchema = z.object({
+     field: z.string(),
+     // ... other fields
+   });
+   ```
+
+2. **TypeScript Type Inference**
+   ```typescript
+   type MyActionInput = z.infer<typeof myActionSchema>;
+   ```
+
+3. **Typed Parameter**
+   ```typescript
+   export async function myAction(input: MyActionInput) {
+     // ...
+   }
+   ```
+
+4. **Validation**
+   ```typescript
+   const validatedData = myActionSchema.parse(input);
+   ```
+
+5. **Authentication Check**
+   ```typescript
+   const { userId } = auth();
+   if (!userId) {
+     throw new Error('Unauthorized');
+   }
+   ```
+
+## Error Handling
+
+Use `.safeParse()` for graceful error handling:
+
+```typescript
+export async function myAction(input: MyActionInput) {
+  const result = myActionSchema.safeParse(input);
+  
+  if (!result.success) {
+    return { 
+      error: 'Validation failed', 
+      details: result.error.flatten() 
+    };
+  }
+  
+  const validatedData = result.data;
+  // ... continue with validated data
+}
+```
+
+## Summary Checklist
+
+- [ ] Data retrieval is done in Server Components
+- [ ] Mutations use Server Actions with `'use server'`
+- [ ] All inputs have Zod schemas defined
+- [ ] TypeScript types are inferred from Zod schemas
+- [ ] Server Actions use typed parameters (NOT FormData)
+- [ ] Data is validated before use
+- [ ] Authentication is checked in Server Actions
+- [ ] `revalidatePath()` or `revalidateTag()` is called after mutations when needed

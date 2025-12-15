@@ -1,0 +1,62 @@
+---
+alwaysApply: true
+description: Guidelines for database interactions using Drizzle ORM
+---
+
+# Database Interaction Guidelines
+
+This project uses **Drizzle ORM** for all database interactions.
+
+## Schema Definition
+
+The database schema is defined in [src/db/schema.ts](mdc:src/db/schema.ts) and includes:
+
+- **decksTable**: Stores flashcard decks with user associations via Clerk user IDs
+- **cardsTable**: Stores individual flashcards with foreign key references to decks
+
+## Required Practices
+
+### Always Use Drizzle Schema
+
+- All database queries **must** use the Drizzle schema definitions from [src/db/schema.ts](mdc:src/db/schema.ts)
+- Never write raw SQL queries directly
+- Import the appropriate table definitions (`decksTable`, `cardsTable`) when working with the database
+
+### Query Patterns
+
+Use Drizzle's query builder for all operations:
+
+```typescript
+import { db } from '@/db';
+import { decksTable, cardsTable } from '@/db/schema';
+import { eq, and } from 'drizzle-orm';
+
+// SELECT queries
+const decks = await db.select().from(decksTable).where(eq(decksTable.userId, userId));
+
+// INSERT queries
+const newDeck = await db.insert(decksTable).values({
+  userId: userId,
+  name: 'My Deck',
+  description: 'Description'
+}).returning();
+
+// UPDATE queries
+await db.update(decksTable)
+  .set({ name: 'Updated Name', updatedAt: new Date() })
+  .where(eq(decksTable.id, deckId));
+
+// DELETE queries
+await db.delete(cardsTable).where(eq(cardsTable.id, cardId));
+```
+
+### Relationships
+
+- Use Drizzle's relational queries when fetching related data
+- Leverage the cascade delete on `cardsTable.deckId` reference
+- Always validate user ownership through `userId` checks on decks
+
+## Security
+
+- Always filter queries by `userId` from Clerk authentication to ensure users can only access their own data
+- Never expose database operations without proper authentication checks

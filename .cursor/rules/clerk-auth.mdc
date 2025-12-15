@@ -1,0 +1,169 @@
+---
+alwaysApply: true
+---
+# Clerk Authentication & Authorization Guidelines
+
+This project uses **Clerk** for all authentication and authorization.
+
+## Critical Security Principle
+
+**Users must ONLY be able to access their own data.** Never allow users to access, modify, or delete data that doesn't belong to them.
+
+## Authentication
+
+- All authentication is handled by Clerk
+- Use Clerk's hooks and utilities to get the current user:
+  - `useUser()` - Client-side React hook for user information
+  - `useAuth()` - Client-side React hook for authentication state
+  - `auth()` - Server-side function to get authentication state in Server Components and API Routes
+  - `currentUser()` - Server-side function to get full user object
+
+### Example Usage
+
+```typescript
+import { auth, currentUser } from '@clerk/nextjs/server';
+
+// In Server Components or API Routes
+export default async function MyPage() {
+  const { userId } = auth();
+  
+  if (!userId) {
+    return <div>Not authenticated</div>;
+  }
+  
+  // Use userId to fetch user-specific data
+  const userDecks = await db.select()
+    .from(decksTable)
+    .where(eq(decksTable.userId, userId));
+    
+  return <div>{/* render user's data */}</div>;
+}
+```
+
+## Authorization Rules
+
+### Database Queries
+
+**ALWAYS filter by userId when querying user-owned data:**
+
+```typescript
+// ✅ CORRECT - Filters by userId
+const decks = await db.select()
+  .from(decksTable)
+  .where(eq(decksTable.userId, userId));
+
+// ❌ WRONG - Returns all decks from all users
+const decks = await db.select().from(decksTable);
+```
+
+### API Routes & Server Actions
+
+1. **Always authenticate first:**
+   ```typescript
+   const { userId } = auth();
+   if (!userId) {
+     return { error: 'Unauthorized' };
+   }
+   ```
+
+2. **Verify ownership before operations:**
+   ```typescript
+   // When updating/deleting a deck
+   const deck = await db.select()
+     .from(decksTable)
+     .where(and(
+       eq(decksTable.id, deckId),
+       eq(decksTable.userId, userId)
+     ))
+     .limit(1);
+   
+   if (!deck.length) {
+     return { error: 'Not found or unauthorized' };
+   }
+   ```
+
+3. **Use userId in all INSERT operations:**
+   ```typescript
+   await db.insert(decksTable).values({
+     userId: userId, // Always include userId
+     name: deckName,
+     description: deckDescription
+   });
+   ```
+
+### Related Data (Cascading Authorization)
+
+When accessing related data (e.g., cards that belong to decks):
+
+```typescript
+// First verify the user owns the deck
+const deck = await db.select()
+  .from(decksTable)
+  .where(and(
+    eq(decksTable.id, deckId),
+    eq(decksTable.userId, userId)
+  ))
+  .limit(1);
+
+if (!deck.length) {
+  return { error: 'Unauthorized' };
+}
+
+// Then fetch cards for that deck
+const cards = await db.select()
+  .from(cardsTable)
+  .where(eq(cardsTable.deckId, deckId));
+```
+
+## Protected Routes
+
+Use Clerk's middleware to protect routes in `middleware.ts`:
+
+```typescript
+import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
+
+const isProtectedRoute = createRouteMatcher([
+  '/dashboard(.*)',
+  '/decks(.*)',
+  '/api(.*)'
+]);
+
+export default clerkMiddleware((auth, req) => {
+  if (isProtectedRoute(req)) auth().protect();
+});
+
+export const config = {
+  matcher: ["/((?!.*\\..*|_next).*)", "/", "/(api|trpc)(.*)"],
+};
+```
+
+## Security Checklist
+
+Before deploying any feature that accesses data:
+
+- [ ] User authentication is checked
+- [ ] Database queries filter by `userId`
+- [ ] Ownership is verified before UPDATE/DELETE operations
+- [ ] Related data access checks parent ownership
+- [ ] API routes return appropriate error codes (401 Unauthorized, 404 Not Found)
+- [ ] No user can access another user's data through any code path
+
+## Common Pitfalls to Avoid
+
+❌ **Never use request parameters for userId:**
+```typescript
+// BAD - userId should come from auth(), not request
+const userId = request.params.userId;
+```
+
+❌ **Never trust client-side data for authorization:**
+```typescript
+// BAD - userId from client can be tampered with
+const { userId } = await request.json();
+```
+
+✅ **Always get userId from Clerk's auth():**
+```typescript
+// GOOD - userId from authenticated session
+const { userId } = auth();
+```
