@@ -1,9 +1,10 @@
 import { SignInButton, SignUpButton } from "@clerk/nextjs";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
+import { Button } from "@/components/ui/button";
 
 export default async function Home() {
-  const { userId } = auth();
+  const { userId } = await auth();
   
   // Redirect logged-in users to dashboard
   if (userId) {
@@ -23,14 +24,14 @@ export default async function Home() {
         </div>
         <div className="flex flex-col gap-4 sm:flex-row">
           <SignInButton mode="modal">
-            <button className="flex h-12 items-center justify-center rounded-full bg-foreground px-8 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc]">
+            <Button size="lg" className="rounded-full">
               Sign In
-            </button>
+            </Button>
           </SignInButton>
           <SignUpButton mode="modal">
-            <button className="flex h-12 items-center justify-center rounded-full border border-solid border-black/[.08] px-8 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a]">
+            <Button variant="outline" size="lg" className="rounded-full">
               Sign Up
-            </button>
+            </Button>
           </SignUpButton>
         </div>
       </main>

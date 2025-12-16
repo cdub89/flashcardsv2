@@ -33,6 +33,8 @@ export default function RootLayout({
       appearance={{
         baseTheme: dark,
       }}
+      signInFallbackRedirectUrl="/dashboard"
+      signUpFallbackRedirectUrl="/dashboard"
     >
       <html lang="en" className="dark">
         <body className={`${poppins.variable} antialiased`}>

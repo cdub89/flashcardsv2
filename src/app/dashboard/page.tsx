@@ -1,7 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
-import { db } from "@/db";
-import { decksTable, cardsTable } from "@/db/schema";
-import { eq, count } from "drizzle-orm";
+import { getDecksWithCardCounts } from "@/db/queries/decks";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
@@ -19,27 +17,8 @@ export default async function DashboardPage() {
     );
   }
 
-  // Fetch user's decks
-  const decks = await db
-    .select()
-    .from(decksTable)
-    .where(eq(decksTable.userId, userId))
-    .orderBy(decksTable.createdAt);
-
-  // Fetch card counts for each deck
-  const deckStats = await Promise.all(
-    decks.map(async (deck) => {
-      const cardCount = await db
-        .select({ count: count() })
-        .from(cardsTable)
-        .where(eq(cardsTable.deckId, deck.id));
-      
-      return {
-        ...deck,
-        cardCount: cardCount[0]?.count || 0,
-      };
-    })
-  );
+  // Fetch user's decks with card counts
+  const deckStats = await getDecksWithCardCounts(userId);
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -59,7 +38,7 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div className="bg-card border border-border rounded-lg p-6">
           <div className="text-sm text-muted-foreground mb-1">Total Decks</div>
-          <div className="text-3xl font-bold">{decks.length}</div>
+          <div className="text-3xl font-bold">{deckStats.length}</div>
         </div>
         <div className="bg-card border border-border rounded-lg p-6">
           <div className="text-sm text-muted-foreground mb-1">Total Cards</div>
@@ -72,10 +51,10 @@ export default async function DashboardPage() {
             Average Cards per Deck
           </div>
           <div className="text-3xl font-bold">
-            {decks.length > 0
+            {deckStats.length > 0
               ? Math.round(
                   deckStats.reduce((sum, deck) => sum + deck.cardCount, 0) /
-                    decks.length
+                    deckStats.length
                 )
               : 0}
           </div>
