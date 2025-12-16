@@ -1,16 +1,17 @@
 import { db } from '@/db';
 import { cardsTable } from '@/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, desc } from 'drizzle-orm';
 
 /**
  * Get all cards for a specific deck
+ * Sorted by updatedAt in descending order (newest/recently updated first)
  */
 export async function getCardsByDeckId(deckId: number) {
   return await db
     .select()
     .from(cardsTable)
     .where(eq(cardsTable.deckId, deckId))
-    .orderBy(cardsTable.createdAt);
+    .orderBy(desc(cardsTable.updatedAt));
 }
 
 /**

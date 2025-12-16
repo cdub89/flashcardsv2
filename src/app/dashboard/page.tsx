@@ -93,7 +93,7 @@ export default async function DashboardPage() {
                       {deck.cardCount} {deck.cardCount === 1 ? "card" : "cards"}
                     </span>
                     <span className="text-muted-foreground">
-                      {new Date(deck.createdAt).toLocaleDateString()}
+                      {new Date(deck.updatedAt).toLocaleDateString()}
                     </span>
                   </div>
                 </div>
