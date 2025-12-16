@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { getDecksWithCardCounts } from "@/db/queries/decks";
-import { Button } from "@/components/ui/button";
+import { CreateDeckDialog } from "@/components/create-deck-dialog";
 import Link from "next/link";
 
 export default async function DashboardPage() {
@@ -29,9 +29,7 @@ export default async function DashboardPage() {
             Manage your flashcard decks and track your progress
           </p>
         </div>
-        <Button asChild>
-          <Link href="/dashboard/decks/new">Create New Deck</Link>
-        </Button>
+        <CreateDeckDialog />
       </div>
 
       {/* Stats Overview */}
@@ -69,9 +67,9 @@ export default async function DashboardPage() {
             <p className="text-muted-foreground mb-4">
               You don't have any decks yet
             </p>
-            <Button asChild>
-              <Link href="/dashboard/decks/new">Create Your First Deck</Link>
-            </Button>
+            <CreateDeckDialog>
+              Create Your First Deck
+            </CreateDeckDialog>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

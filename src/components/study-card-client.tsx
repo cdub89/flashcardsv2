@@ -14,14 +14,22 @@ import {
   ChevronLeft, 
   ChevronRight, 
   RotateCcw, 
-  Shuffle 
+  Shuffle,
+  Check,
+  X,
+  TrendingUp,
 } from "lucide-react";
+import { recordAnswerAction } from "@/app/actions/cards";
+import { toast } from "sonner";
 
 interface StudyCard {
   id: number;
   deckId: number;
   front: string;
   back: string;
+  correctCount: number;
+  incorrectCount: number;
+  lastStudied: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -35,6 +43,11 @@ export function StudyCardClient({ cards, deckName }: StudyCardClientProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [studyCards, setStudyCards] = useState(cards);
+  const [sessionStats, setSessionStats] = useState({
+    correct: 0,
+    incorrect: 0,
+  });
+  const [isRecording, setIsRecording] = useState(false);
 
   // Reset flip state when card changes
   useEffect(() => {
@@ -89,10 +102,96 @@ export function StudyCardClient({ cards, deckName }: StudyCardClientProps) {
   const handleRestart = () => {
     setCurrentIndex(0);
     setIsFlipped(false);
+    setSessionStats({ correct: 0, incorrect: 0 });
   };
+
+  const handleAnswer = async (isCorrect: boolean) => {
+    if (isRecording) return; // Prevent multiple submissions
+    
+    setIsRecording(true);
+    
+    try {
+      const result = await recordAnswerAction({
+        cardId: currentCard.id,
+        deckId: currentCard.deckId,
+        isCorrect,
+      });
+      
+      if (result.success) {
+        // Update session stats
+        setSessionStats(prev => ({
+          correct: prev.correct + (isCorrect ? 1 : 0),
+          incorrect: prev.incorrect + (isCorrect ? 0 : 1),
+        }));
+        
+        // Update the card in the local state
+        setStudyCards(prev => prev.map(card => 
+          card.id === currentCard.id && result.data
+            ? {
+                ...card,
+                correctCount: result.data.correctCount,
+                incorrectCount: result.data.incorrectCount,
+                lastStudied: result.data.lastStudied,
+              }
+            : card
+        ));
+        
+        // Auto-advance to next card
+        if (currentIndex < studyCards.length - 1) {
+          setTimeout(() => {
+            setCurrentIndex(currentIndex + 1);
+          }, 300);
+        } else {
+          toast.success("Session complete! Great work! 🎉");
+        }
+      } else {
+        toast.error(result.error || "Failed to record answer");
+      }
+    } catch (error) {
+      console.error("Error recording answer:", error);
+      toast.error("Failed to record answer");
+    } finally {
+      setIsRecording(false);
+    }
+  };
+
+  const totalAnswers = currentCard.correctCount + currentCard.incorrectCount;
+  const accuracy = totalAnswers > 0 
+    ? Math.round((currentCard.correctCount / totalAnswers) * 100) 
+    : 0;
 
   return (
     <div className="max-w-3xl mx-auto">
+      {/* Session Stats */}
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardDescription>Session Progress</CardDescription>
+            <CardTitle className="text-2xl">
+              {currentIndex + 1} / {studyCards.length}
+            </CardTitle>
+          </CardHeader>
+        </Card>
+        
+        <Card>
+          <CardHeader className="pb-3">
+            <CardDescription>Session Correct</CardDescription>
+            <CardTitle className="text-2xl text-green-600">
+              {sessionStats.correct}
+            </CardTitle>
+          </CardHeader>
+        </Card>
+        
+        <Card>
+          <CardHeader className="pb-3">
+            <CardDescription>Session Incorrect</CardDescription>
+            <CardTitle className="text-2xl text-red-600">
+              {sessionStats.incorrect}
+            </CardTitle>
+          </CardHeader>
+        </Card>
+      </div>
+
       {/* Progress Bar */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-2">
@@ -124,9 +223,19 @@ export function StudyCardClient({ cards, deckName }: StudyCardClientProps) {
       {/* Flashcard */}
       <Card className="mb-8">
         <CardHeader>
-          <CardTitle className="text-center text-lg text-muted-foreground">
-            {isFlipped ? "Back" : "Front"}
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg text-muted-foreground">
+              {isFlipped ? "Back" : "Front"}
+            </CardTitle>
+            {totalAnswers > 0 && (
+              <div className="flex items-center gap-2 text-sm">
+                <TrendingUp className="h-4 w-4" />
+                <span className="font-medium">
+                  {accuracy}% accuracy ({currentCard.correctCount}/{totalAnswers})
+                </span>
+              </div>
+            )}
+          </div>
         </CardHeader>
         <CardContent 
           className="min-h-[300px] flex items-center justify-center cursor-pointer"
@@ -137,11 +246,37 @@ export function StudyCardClient({ cards, deckName }: StudyCardClientProps) {
               {isFlipped ? currentCard.back : currentCard.front}
             </p>
             <p className="text-sm text-muted-foreground">
-              Click or press Space to flip
+              {isFlipped ? "Rate your answer below" : "Click or press Space to flip"}
             </p>
           </div>
         </CardContent>
       </Card>
+
+      {/* Answer Buttons (shown when flipped) */}
+      {isFlipped ? (
+        <div className="grid grid-cols-2 gap-4 mb-4">
+          <Button
+            size="lg"
+            variant="destructive"
+            onClick={() => handleAnswer(false)}
+            disabled={isRecording}
+            className="h-16"
+          >
+            <X className="h-6 w-6 mr-2" />
+            Incorrect
+          </Button>
+          <Button
+            size="lg"
+            variant="default"
+            onClick={() => handleAnswer(true)}
+            disabled={isRecording}
+            className="h-16 bg-green-600 hover:bg-green-700"
+          >
+            <Check className="h-6 w-6 mr-2" />
+            Correct
+          </Button>
+        </div>
+      ) : null}
 
       {/* Navigation Buttons */}
       <div className="flex items-center justify-between gap-4">
@@ -149,7 +284,7 @@ export function StudyCardClient({ cards, deckName }: StudyCardClientProps) {
           variant="outline"
           size="lg"
           onClick={handlePrevious}
-          disabled={currentIndex === 0}
+          disabled={currentIndex === 0 || isRecording}
           className="flex-1"
         >
           <ChevronLeft className="h-5 w-5 mr-2" />
@@ -159,6 +294,7 @@ export function StudyCardClient({ cards, deckName }: StudyCardClientProps) {
         <Button
           size="lg"
           onClick={handleFlip}
+          disabled={isRecording}
           className="flex-1"
         >
           Flip Card
@@ -168,7 +304,7 @@ export function StudyCardClient({ cards, deckName }: StudyCardClientProps) {
           variant="outline"
           size="lg"
           onClick={handleNext}
-          disabled={currentIndex === studyCards.length - 1}
+          disabled={currentIndex === studyCards.length - 1 || isRecording}
           className="flex-1"
         >
           Next
@@ -197,7 +333,7 @@ export function StudyCardClient({ cards, deckName }: StudyCardClientProps) {
       </Card>
 
       {/* Completion Message */}
-      {currentIndex === studyCards.length - 1 && (
+      {currentIndex === studyCards.length - 1 && sessionStats.correct + sessionStats.incorrect > 0 && (
         <Card className="mt-8 border-primary">
           <CardHeader>
             <CardTitle>Great Job! 🎉</CardTitle>
@@ -206,6 +342,36 @@ export function StudyCardClient({ cards, deckName }: StudyCardClientProps) {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            <div className="mb-4 p-4 bg-muted rounded-lg">
+              <h3 className="font-semibold mb-2">Session Summary</h3>
+              <div className="grid grid-cols-3 gap-4 text-center">
+                <div>
+                  <div className="text-2xl font-bold">
+                    {sessionStats.correct + sessionStats.incorrect}
+                  </div>
+                  <div className="text-sm text-muted-foreground">Total</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-green-600">
+                    {sessionStats.correct}
+                  </div>
+                  <div className="text-sm text-muted-foreground">Correct</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-red-600">
+                    {sessionStats.incorrect}
+                  </div>
+                  <div className="text-sm text-muted-foreground">Incorrect</div>
+                </div>
+              </div>
+              {sessionStats.correct + sessionStats.incorrect > 0 && (
+                <div className="mt-3 text-center">
+                  <span className="text-lg font-semibold">
+                    Accuracy: {Math.round((sessionStats.correct / (sessionStats.correct + sessionStats.incorrect)) * 100)}%
+                  </span>
+                </div>
+              )}
+            </div>
             <div className="flex gap-2">
               <Button onClick={handleRestart}>
                 Study Again

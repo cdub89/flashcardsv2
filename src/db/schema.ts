@@ -16,6 +16,9 @@ export const cardsTable = pgTable("cards", {
   deckId: integer("deck_id").notNull().references(() => decksTable.id, { onDelete: "cascade" }),
   front: text().notNull(), // Front of the card (e.g., "Dog" or "When was the battle of hastings?")
   back: text().notNull(), // Back of the card (e.g., "Anjing" or "1066")
+  correctCount: integer("correct_count").default(0).notNull(), // Number of correct answers
+  incorrectCount: integer("incorrect_count").default(0).notNull(), // Number of incorrect answers
+  lastStudied: timestamp("last_studied"), // Last time this card was studied
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

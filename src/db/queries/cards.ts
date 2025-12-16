@@ -70,3 +70,33 @@ export async function deleteCard(cardId: number) {
     .where(eq(cardsTable.id, cardId));
 }
 
+/**
+ * Record an answer for a card (correct or incorrect)
+ */
+export async function recordAnswer(
+  cardId: number,
+  isCorrect: boolean
+) {
+  const card = await getCardById(cardId);
+  
+  if (!card) {
+    throw new Error('Card not found');
+  }
+
+  const result = await db.update(cardsTable)
+    .set({
+      correctCount: isCorrect 
+        ? (card.correctCount || 0) + 1 
+        : card.correctCount,
+      incorrectCount: !isCorrect 
+        ? (card.incorrectCount || 0) + 1 
+        : card.incorrectCount,
+      lastStudied: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(cardsTable.id, cardId))
+    .returning();
+  
+  return result[0];
+}
+
