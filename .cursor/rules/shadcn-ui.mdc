@@ -42,7 +42,157 @@ npx shadcn@latest add <component-name>
 
 ## Usage Guidelines
 
-- Always use shadcn UI components for UI elements
+### CRITICAL RULE: shadcn UI ONLY
+
+**ABSOLUTELY NO CUSTOM UI COMPONENTS ARE ALLOWED IN THIS PROJECT.**
+
+- **ONLY use shadcn UI components** for ALL UI elements
+- **NEVER create custom buttons, cards, dialogs, inputs, or any other UI elements**
+- **NEVER write custom Tailwind classes for UI components** - use shadcn UI components exclusively
+- If a UI element is needed, find the appropriate shadcn UI component or install it
 - Check if a component is already installed before adding it
 - Components are typically installed in the `components/ui` directory
 - Follow shadcn UI's component API and patterns
+
+### Examples of What NOT to Do
+
+❌ **NEVER do this:**
+```tsx
+// BAD - Custom button with Tailwind classes
+<button className="px-4 py-2 bg-blue-500 rounded">Click me</button>
+```
+
+✅ **ALWAYS do this:**
+```tsx
+// GOOD - shadcn UI Button component
+import { Button } from '@/components/ui/button';
+<Button>Click me</Button>
+```
+
+❌ **NEVER do this:**
+```tsx
+// BAD - Custom card with divs
+<div className="border rounded-lg p-4 shadow">
+  <h2>Title</h2>
+  <p>Content</p>
+</div>
+```
+
+✅ **ALWAYS do this:**
+```tsx
+// GOOD - shadcn UI Card component
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+<Card>
+  <CardHeader>
+    <CardTitle>Title</CardTitle>
+  </CardHeader>
+  <CardContent>
+    <p>Content</p>
+  </CardContent>
+</Card>
+```
+
+## Clerk Integration with shadcn UI
+
+**ALL Clerk authentication UI MUST use shadcn UI components.**
+
+### Sign In / Sign Up Buttons
+
+- **Use shadcn UI Button component** for all Clerk sign in and sign up triggers
+- **Use shadcn UI Dialog component** to display Clerk's authentication UI in a modal
+- **NEVER use Clerk's default button styling or prebuilt components directly in the UI**
+
+### Implementation Pattern
+
+```tsx
+'use client';
+
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { SignIn, SignUp } from '@clerk/nextjs';
+
+// ✅ CORRECT - Sign In with shadcn UI
+export function SignInButton() {
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button>Sign In</Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Sign In</DialogTitle>
+          <DialogDescription>
+            Sign in to your account
+          </DialogDescription>
+        </DialogHeader>
+        <SignIn />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ✅ CORRECT - Sign Up with shadcn UI
+export function SignUpButton() {
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="outline">Sign Up</Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Create Account</DialogTitle>
+          <DialogDescription>
+            Create a new account to get started
+          </DialogDescription>
+        </DialogHeader>
+        <SignUp />
+      </DialogContent>
+    </Dialog>
+  );
+}
+```
+
+### Required shadcn UI Components for Clerk
+
+Install these shadcn UI components for Clerk integration:
+
+```bash
+npx shadcn@latest add button
+npx shadcn@latest add dialog
+```
+
+### Key Rules for Clerk Integration
+
+- ✅ Use shadcn UI `Button` for all authentication triggers
+- ✅ Use shadcn UI `Dialog` to wrap Clerk's `<SignIn />` and `<SignUp />` components
+- ✅ Apply shadcn UI button variants for different states (default, outline, ghost, etc.)
+- ❌ NEVER use `<SignInButton>` or `<SignUpButton>` from `@clerk/nextjs` directly
+- ❌ NEVER create custom styled buttons for authentication
+- ❌ NEVER embed Clerk components directly on the page without a modal
+
+## Component Installation Reference
+
+Common shadcn UI components you may need:
+
+- `button` - For all clickable actions
+- `card` - For content containers
+- `dialog` - For modals (including Clerk auth)
+- `form` - For form inputs
+- `input` - For text inputs
+- `label` - For form labels
+- `select` - For dropdowns
+- `textarea` - For multi-line text inputs
+- `alert` - For notifications
+- `badge` - For labels and tags
+- `table` - For data tables
+- `tabs` - For tabbed interfaces
+- `toast` - For toast notifications
+
+Always check the [shadcn UI documentation](https://ui.shadcn.com) for available components.

@@ -38,7 +38,16 @@ export default function RootLayout({
         <body className={`${poppins.variable} antialiased`}>
           <header className="border-b border-border">
             <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-              <h1 className="text-xl font-semibold">Flashcards v2</h1>
+              <div className="flex items-center gap-6">
+                <h1 className="text-xl font-semibold">Flashcards v2</h1>
+                <SignedIn>
+                  <nav className="flex items-center gap-4">
+                    <Button variant="ghost" asChild>
+                      <a href="/dashboard">Dashboard</a>
+                    </Button>
+                  </nav>
+                </SignedIn>
+              </div>
               <div className="flex items-center gap-4">
                 <SignedOut>
                   <SignInButton mode="modal">
