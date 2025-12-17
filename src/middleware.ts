@@ -1,16 +1,22 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
 
 const isProtectedRoute = createRouteMatcher([
   "/dashboard(.*)",
+  "/decks(.*)",
   "/api(.*)",
 ]);
 
 export default clerkMiddleware(
   async (auth, req) => {
     if (isProtectedRoute(req)) {
-      await auth.protect({
-        unauthenticatedUrl: "/",
-      });
+      const { userId } = await auth();
+      
+      if (!userId) {
+        // Create absolute URL for redirect
+        const homeUrl = new URL("/", req.url);
+        return NextResponse.redirect(homeUrl);
+      }
     }
   },
   {
