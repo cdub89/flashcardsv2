@@ -3,7 +3,7 @@
 import { auth } from '@clerk/nextjs/server';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { insertDeck, updateDeck, deleteDeck, getDeckById } from '@/db/queries/decks';
+import { insertDeck, updateDeck, deleteDeck, getDeckById, getDecksByUserId } from '@/db/queries/decks';
 
 // ============================================================================
 // CREATE DECK
@@ -31,20 +31,36 @@ export async function createDeckAction(input: CreateDeckInput) {
   const validatedData = result.data;
   
   // 2. Authenticate
-  const { userId } = await auth();
+  const { userId, has } = await auth();
   if (!userId) {
     return { success: false, error: 'Unauthorized' };
   }
   
+  // 3. Check feature access - deck limit
+  const hasUnlimitedDecks = has({ feature: 'unlimited_decks' });
+  
+  // If user doesn't have unlimited decks, check the limit
+  if (!hasUnlimitedDecks) {
+    const existingDecks = await getDecksByUserId(userId);
+    const has3DeckLimit = has({ feature: '3_deck_limit' });
+    
+    if (has3DeckLimit && existingDecks.length >= 3) {
+      return { 
+        success: false, 
+        error: 'Deck limit reached. Upgrade to Pro for unlimited decks.' 
+      };
+    }
+  }
+  
   try {
-    // 3. Call mutation function from db/queries
+    // 4. Call mutation function from db/queries
     const deck = await insertDeck({
       userId,
       name: validatedData.name,
       description: validatedData.description,
     });
     
-    // 4. Revalidate cache
+    // 5. Revalidate cache
     revalidatePath('/dashboard');
     
     return { success: true, data: deck };

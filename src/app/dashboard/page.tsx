@@ -1,10 +1,12 @@
 import { auth } from "@clerk/nextjs/server";
 import { getDecksWithCardCounts } from "@/db/queries/decks";
 import { CreateDeckDialog } from "@/components/create-deck-dialog";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
 export default async function DashboardPage() {
-  const { userId } = await auth();
+  const { userId, has } = await auth();
 
   if (!userId) {
     return (
@@ -19,6 +21,13 @@ export default async function DashboardPage() {
 
   // Fetch user's decks with card counts
   const deckStats = await getDecksWithCardCounts(userId);
+
+  // Check billing features
+  const hasUnlimitedDecks = has({ feature: 'unlimited_decks' });
+  const has3DeckLimit = has({ feature: '3_deck_limit' });
+  const deckLimit = hasUnlimitedDecks ? Infinity : 3;
+  const canCreateMore = hasUnlimitedDecks || deckStats.length < 3;
+  const isAtLimit = has3DeckLimit && deckStats.length >= 3;
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -36,7 +45,14 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div className="bg-card border border-border rounded-lg p-6">
           <div className="text-sm text-muted-foreground mb-1">Total Decks</div>
-          <div className="text-3xl font-bold">{deckStats.length}</div>
+          <div className="text-3xl font-bold">
+            {deckStats.length}
+            {!hasUnlimitedDecks && (
+              <span className="text-base text-muted-foreground ml-2">
+                / {deckLimit}
+              </span>
+            )}
+          </div>
         </div>
         <div className="bg-card border border-border rounded-lg p-6">
           <div className="text-sm text-muted-foreground mb-1">Total Cards</div>
@@ -58,6 +74,21 @@ export default async function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Deck Limit Alert */}
+      {isAtLimit && (
+        <Alert className="mb-8">
+          <AlertTitle>Deck Limit Reached</AlertTitle>
+          <AlertDescription className="flex items-center justify-between">
+            <span>
+              You've reached the free tier limit of 3 decks. Upgrade to Pro for unlimited decks!
+            </span>
+            <Button asChild variant="default" size="sm" className="ml-4">
+              <Link href="/pricing">Upgrade to Pro</Link>
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Decks List */}
       <div>

@@ -1,0 +1,371 @@
+---
+alwaysApply: true
+---
+
+# Clerk Billing Guidelines
+
+This project uses **Clerk Billing** for all subscription and payment management in a B2C SaaS model.
+
+## Critical Principles
+
+- **Clerk Billing handles ALL subscription and payment logic** - do not implement custom payment flows
+- **Always check plan/feature access** before displaying premium content or features
+- **Use Clerk's built-in components** for pricing tables and subscription management
+- **Never bypass Clerk's billing checks** or create workarounds
+
+## Available Plans
+
+This app has the following subscription plans:
+
+- `free_user` - Free tier with limited features
+- `pro` - Pro tier with full access
+
+## Available Features
+
+This app has the following features that can be granted to plans:
+
+- `3_deck_limit` - Restricts users to a maximum of 3 decks
+- `unlimited_decks` - Allows unlimited deck creation
+- `ai_flashcard_generation` - Enables AI-powered flashcard generation
+
+## Checking Plan & Feature Access
+
+### Server-Side Access Control with `has()`
+
+Use the `has()` method available on the `auth` object to check if a user has access to a specific Plan or Feature.
+
+#### Check for a Plan
+
+```typescript
+import { auth } from '@clerk/nextjs/server';
+
+export default async function MyPage() {
+  const { has } = await auth();
+  
+  const hasProPlan = has({ plan: 'pro' });
+  const hasFreePlan = has({ plan: 'free_user' });
+  
+  if (!hasProPlan) {
+    return <div>Upgrade to Pro to access this feature</div>;
+  }
+  
+  return <div>Pro content here</div>;
+}
+```
+
+#### Check for a Feature
+
+```typescript
+import { auth } from '@clerk/nextjs/server';
+
+export default async function MyPage() {
+  const { has } = await auth();
+  
+  const hasUnlimitedDecks = has({ feature: 'unlimited_decks' });
+  const hasAIGeneration = has({ feature: 'ai_flashcard_generation' });
+  
+  if (!hasUnlimitedDecks) {
+    return <div>Upgrade to create unlimited decks</div>;
+  }
+  
+  return <div>Create as many decks as you want!</div>;
+}
+```
+
+### Client-Side Protection with `<Protect>`
+
+Use the `<Protect>` component to conditionally render content based on plan or feature access.
+
+#### Protect by Plan
+
+```tsx
+import { Protect } from '@clerk/nextjs';
+
+export function ProFeature() {
+  return (
+    <Protect
+      plan="pro"
+      fallback={<p>Upgrade to Pro to access this feature.</p>}
+    >
+      <div>Exclusive Pro content</div>
+    </Protect>
+  );
+}
+```
+
+#### Protect by Feature
+
+```tsx
+import { Protect } from '@clerk/nextjs';
+
+export function AIGenerationFeature() {
+  return (
+    <Protect
+      feature="ai_flashcard_generation"
+      fallback={<p>Upgrade to use AI flashcard generation.</p>}
+    >
+      <button>Generate with AI</button>
+    </Protect>
+  );
+}
+```
+
+## Creating a Pricing Page
+
+Use the `<PricingTable />` component to display available plans. Create a dedicated page for pricing:
+
+```tsx
+// app/pricing/page.tsx
+import { PricingTable } from '@clerk/nextjs';
+
+export default function PricingPage() {
+  return (
+    <div style={{ maxWidth: '800px', margin: '0 auto', padding: '0 1rem' }}>
+      <PricingTable />
+    </div>
+  );
+}
+```
+
+## Integration with Existing Architecture
+
+### Server Components
+
+When fetching data in Server Components, check plan/feature access before returning data:
+
+```typescript
+// app/decks/page.tsx
+import { auth } from '@clerk/nextjs/server';
+import { getDecksByUserId } from '@/db/queries/decks';
+
+export default async function DecksPage() {
+  const { userId, has } = await auth();
+  
+  if (!userId) {
+    return <div>Not authenticated</div>;
+  }
+  
+  const decks = await getDecksByUserId(userId);
+  const hasUnlimitedDecks = has({ feature: 'unlimited_decks' });
+  const deckLimit = hasUnlimitedDecks ? Infinity : 3;
+  
+  return (
+    <DecksClient 
+      decks={decks} 
+      canCreateMore={decks.length < deckLimit}
+      deckLimit={deckLimit}
+    />
+  );
+}
+```
+
+### Server Actions
+
+Check plan/feature access in Server Actions before performing operations:
+
+```typescript
+'use server';
+
+import { auth } from '@clerk/nextjs/server';
+import { revalidatePath } from 'next/cache';
+import { z } from 'zod';
+import { insertDeck, getDecksByUserId } from '@/db/queries/decks';
+
+const createDeckSchema = z.object({
+  name: z.string().min(1).max(100),
+  description: z.string().max(500).optional(),
+});
+
+type CreateDeckInput = z.infer<typeof createDeckSchema>;
+
+export async function createDeck(input: CreateDeckInput) {
+  // Validate input
+  const validatedData = createDeckSchema.parse(input);
+  
+  // Authenticate
+  const { userId, has } = await auth();
+  if (!userId) {
+    throw new Error('Unauthorized');
+  }
+  
+  // Check feature access
+  const hasUnlimitedDecks = has({ feature: 'unlimited_decks' });
+  
+  // If user doesn't have unlimited decks, check the limit
+  if (!hasUnlimitedDecks) {
+    const existingDecks = await getDecksByUserId(userId);
+    const has3DeckLimit = has({ feature: '3_deck_limit' });
+    
+    if (has3DeckLimit && existingDecks.length >= 3) {
+      throw new Error('Deck limit reached. Upgrade to Pro for unlimited decks.');
+    }
+  }
+  
+  // Create deck
+  const result = await insertDeck({
+    userId,
+    name: validatedData.name,
+    description: validatedData.description,
+  });
+  
+  revalidatePath('/decks');
+  return result;
+}
+```
+
+## Common Use Cases
+
+### 1. Limit Deck Creation
+
+```typescript
+'use server';
+
+import { auth } from '@clerk/nextjs/server';
+import { getDecksByUserId } from '@/db/queries/decks';
+
+export async function canCreateDeck(): Promise<{ canCreate: boolean; reason?: string }> {
+  const { userId, has } = await auth();
+  
+  if (!userId) {
+    return { canCreate: false, reason: 'Not authenticated' };
+  }
+  
+  const hasUnlimitedDecks = has({ feature: 'unlimited_decks' });
+  
+  if (hasUnlimitedDecks) {
+    return { canCreate: true };
+  }
+  
+  const existingDecks = await getDecksByUserId(userId);
+  const has3DeckLimit = has({ feature: '3_deck_limit' });
+  
+  if (has3DeckLimit && existingDecks.length >= 3) {
+    return { 
+      canCreate: false, 
+      reason: 'You have reached the 3-deck limit. Upgrade to Pro for unlimited decks.' 
+    };
+  }
+  
+  return { canCreate: true };
+}
+```
+
+### 2. Show/Hide AI Generation Button
+
+```tsx
+'use client';
+
+import { Button } from '@/components/ui/button';
+import { Protect } from '@clerk/nextjs';
+
+export function CreateCardForm() {
+  return (
+    <div>
+      <form>{/* Regular form fields */}</form>
+      
+      <Protect
+        feature="ai_flashcard_generation"
+        fallback={
+          <Button disabled>
+            Generate with AI (Pro Feature)
+          </Button>
+        }
+      >
+        <Button onClick={handleAIGeneration}>
+          Generate with AI
+        </Button>
+      </Protect>
+    </div>
+  );
+}
+```
+
+### 3. Display Upgrade Prompts
+
+```tsx
+'use client';
+
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { useRouter } from 'next/navigation';
+
+export function DeckLimitAlert({ currentCount }: { currentCount: number }) {
+  const router = useRouter();
+  
+  if (currentCount < 3) return null;
+  
+  return (
+    <Alert>
+      <AlertTitle>Deck Limit Reached</AlertTitle>
+      <AlertDescription>
+        You have reached the free tier limit of 3 decks. 
+        Upgrade to Pro for unlimited decks!
+        <Button 
+          variant="link" 
+          onClick={() => router.push('/pricing')}
+        >
+          View Plans
+        </Button>
+      </AlertDescription>
+    </Alert>
+  );
+}
+```
+
+## Security Checklist
+
+Before deploying any feature that depends on plan/feature access:
+
+- [ ] Access is checked server-side using `has()` method
+- [ ] Access checks happen in Server Components or Server Actions
+- [ ] User cannot bypass restrictions through client-side manipulation
+- [ ] Appropriate error messages are shown when access is denied
+- [ ] Upgrade prompts link to `/pricing` page with `<PricingTable />`
+- [ ] Never trust client-side data for access control decisions
+
+## Important Notes
+
+- **Clerk Billing is currently in Beta** - APIs may change. Consider pinning SDK versions.
+- **Clerk Billing costs 0.7% per transaction** plus Stripe transaction fees.
+- **Plans and Features are managed in Clerk Dashboard** at [dashboard.clerk.com](https://dashboard.clerk.com/~/billing/plans).
+- **Use Stripe for payment processing only** - all plan management happens in Clerk.
+- **Development instances** can use Clerk's development gateway for testing without a Stripe account.
+- **Production instances** require your own Stripe account connection.
+
+## Common Pitfalls to Avoid
+
+❌ **Never check plan/feature access only on the client:**
+```tsx
+// BAD - Client-side only check can be bypassed
+'use client';
+export function ProFeature() {
+  const { has } = useAuth();
+  if (!has({ plan: 'pro' })) return null;
+  return <div>Pro content</div>;
+}
+```
+
+✅ **Always enforce on the server:**
+```tsx
+// GOOD - Server-side check that cannot be bypassed
+import { auth } from '@clerk/nextjs/server';
+
+export default async function ProFeature() {
+  const { has } = await auth();
+  if (!has({ plan: 'pro' })) return null;
+  return <div>Pro content</div>;
+}
+```
+
+❌ **Never hardcode feature limits in multiple places:**
+```tsx
+// BAD - Limit hardcoded everywhere
+if (decks.length >= 3) { /* error */ }
+```
+
+✅ **Check features centrally:**
+```tsx
+// GOOD - Check the feature, not a hardcoded number
+const has3DeckLimit = has({ feature: '3_deck_limit' });
+if (has3DeckLimit && decks.length >= 3) { /* error */ }
+```
