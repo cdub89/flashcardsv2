@@ -15,6 +15,7 @@ import { AddCardDialog } from "@/components/add-card-dialog";
 import { EditDeckDialog } from "@/components/edit-deck-dialog";
 import { EditCardDialog } from "@/components/edit-card-dialog";
 import { DeleteCardDialog } from "@/components/delete-card-dialog";
+import { AIGenerateCardsButton } from "@/components/ai-generate-cards-button";
 
 interface DeckPageProps {
   params: Promise<{
@@ -124,10 +125,13 @@ export default async function DeckPage({ params }: DeckPageProps) {
       <div>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-2xl font-semibold">Cards</h2>
-          <AddCardDialog 
-            deckId={deckIdNum}
-            trigger={<Button variant="outline">Add Card</Button>}
-          />
+          <div className="flex gap-2">
+            <AIGenerateCardsButton deckId={deckIdNum} />
+            <AddCardDialog 
+              deckId={deckIdNum}
+              trigger={<Button variant="outline">Add Card</Button>}
+            />
+          </div>
         </div>
 
         {cards.length === 0 ? (

@@ -2,6 +2,8 @@
 
 import { auth } from '@clerk/nextjs/server';
 import { revalidatePath } from 'next/cache';
+import { generateObject } from 'ai';
+import { openai } from '@ai-sdk/openai';
 import { z } from 'zod';
 import { insertCard, updateCard, deleteCard, getCardById, recordAnswer } from '@/db/queries/cards';
 import { getDeckById } from '@/db/queries/decks';
@@ -245,6 +247,100 @@ export async function recordAnswerAction(input: RecordAnswerInput) {
   } catch (error) {
     console.error('Error recording answer:', error);
     return { success: false, error: 'Failed to record answer' };
+  }
+}
+
+// ============================================================================
+// GENERATE FLASHCARDS WITH AI
+// ============================================================================
+
+const generateFlashcardsSchema = z.object({
+  deckId: z.number().int().positive(),
+});
+
+// Output schema for AI generation
+const flashcardGenerationSchema = z.object({
+  cards: z.array(
+    z.object({
+      front: z.string().min(1).max(500),
+      back: z.string().min(1).max(2000),
+    })
+  ),
+});
+
+export type GenerateFlashcardsInput = z.infer<typeof generateFlashcardsSchema>;
+
+export async function generateFlashcardsAction(input: GenerateFlashcardsInput) {
+  // 1. Validate input
+  const result = generateFlashcardsSchema.safeParse(input);
+  
+  if (!result.success) {
+    return { 
+      success: false,
+      error: 'Validation failed', 
+      details: result.error.flatten().fieldErrors 
+    };
+  }
+  
+  const validatedData = result.data;
+  
+  // 2. Authenticate
+  const { userId, has } = await auth();
+  if (!userId) {
+    return { success: false, error: 'Unauthorized' };
+  }
+  
+  // 3. Check feature access
+  const hasAIGeneration = has({ feature: 'ai_flashcard_generation' });
+  if (!hasAIGeneration) {
+    return { 
+      success: false, 
+      error: 'AI flashcard generation requires a Pro subscription' 
+    };
+  }
+  
+  try {
+    // 4. Verify deck ownership
+    const deck = await getDeckById(validatedData.deckId, userId);
+    if (!deck) {
+      return { success: false, error: 'Deck not found or unauthorized' };
+    }
+    
+    // 5. Generate flashcards with AI (20 cards based on deck name and description)
+    const prompt = `Generate 20 flashcards about: ${deck.name}.
+${deck.description ? `Context: ${deck.description}` : ''}
+
+Create educational flashcards where:
+- The front contains a clear question or term
+- The back contains a comprehensive answer or definition
+- Content is accurate and educational
+- Cards cover different aspects of the topic`;
+
+    const { object } = await generateObject({
+      model: openai('gpt-4o-mini'),
+      schema: flashcardGenerationSchema,
+      prompt: prompt,
+    });
+    
+    // 6. Insert generated cards into database
+    const insertedCards = [];
+    for (const card of object.cards) {
+      const result = await insertCard({
+        deckId: validatedData.deckId,
+        front: card.front,
+        back: card.back,
+      });
+      insertedCards.push(result);
+    }
+    
+    // 7. Revalidate cache
+    revalidatePath(`/dashboard/decks/${validatedData.deckId}`);
+    revalidatePath('/dashboard');
+    
+    return { success: true, data: insertedCards };
+  } catch (error) {
+    console.error('AI generation failed:', error);
+    return { success: false, error: 'Failed to generate flashcards. Please try again.' };
   }
 }
 
