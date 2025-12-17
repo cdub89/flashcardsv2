@@ -51,7 +51,7 @@ export default async function StudyPage({ params }: StudyPageProps) {
       <div className="container mx-auto px-4 py-16 text-center">
         <h1 className="text-3xl font-bold mb-4">No Cards to Study</h1>
         <p className="text-muted-foreground mb-8">
-          This deck doesn't have any cards yet. Add some cards before studying.
+          This deck doesn&apos;t have any cards yet. Add some cards before studying.
         </p>
         <Button asChild>
           <Link href={`/dashboard/decks/${deckId}`}>Back to Deck</Link>

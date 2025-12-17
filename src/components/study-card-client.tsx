@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -39,7 +39,7 @@ interface StudyCardClientProps {
   deckName: string;
 }
 
-export function StudyCardClient({ cards, deckName }: StudyCardClientProps) {
+export function StudyCardClient({ cards }: StudyCardClientProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [studyCards, setStudyCards] = useState(cards);
@@ -52,6 +52,18 @@ export function StudyCardClient({ cards, deckName }: StudyCardClientProps) {
   // Reset flip state when card changes
   useEffect(() => {
     setIsFlipped(false);
+  }, [currentIndex]);
+
+  const handleNext = useCallback(() => {
+    if (currentIndex < studyCards.length - 1) {
+      setCurrentIndex(currentIndex + 1);
+    }
+  }, [currentIndex, studyCards.length]);
+
+  const handlePrevious = useCallback(() => {
+    if (currentIndex > 0) {
+      setCurrentIndex(currentIndex - 1);
+    }
   }, [currentIndex]);
 
   // Keyboard shortcuts
@@ -71,22 +83,10 @@ export function StudyCardClient({ cards, deckName }: StudyCardClientProps) {
 
     window.addEventListener("keydown", handleKeyPress);
     return () => window.removeEventListener("keydown", handleKeyPress);
-  }, [currentIndex, studyCards.length]);
+  }, [handleNext, handlePrevious]);
 
   const currentCard = studyCards[currentIndex];
   const progress = ((currentIndex + 1) / studyCards.length) * 100;
-
-  const handleNext = () => {
-    if (currentIndex < studyCards.length - 1) {
-      setCurrentIndex(currentIndex + 1);
-    }
-  };
-
-  const handlePrevious = () => {
-    if (currentIndex > 0) {
-      setCurrentIndex(currentIndex - 1);
-    }
-  };
 
   const handleFlip = () => {
     setIsFlipped(!isFlipped);
@@ -338,7 +338,7 @@ export function StudyCardClient({ cards, deckName }: StudyCardClientProps) {
           <CardHeader>
             <CardTitle>Great Job! 🎉</CardTitle>
             <CardDescription>
-              You've reached the last card in this deck. Keep up the great work!
+              You&apos;ve reached the last card in this deck. Keep up the great work!
             </CardDescription>
           </CardHeader>
           <CardContent>

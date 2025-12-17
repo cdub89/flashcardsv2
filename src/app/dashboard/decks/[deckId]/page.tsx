@@ -138,7 +138,7 @@ export default async function DeckPage({ params }: DeckPageProps) {
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">
               <p className="text-muted-foreground mb-4">
-                This deck doesn't have any cards yet
+                This deck doesn&apos;t have any cards yet
               </p>
               <AddCardDialog 
                 deckId={deckIdNum}

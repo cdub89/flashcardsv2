@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { cardsTable } from '@/db/schema';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, desc } from 'drizzle-orm';
 
 /**
  * Get all cards for a specific deck

@@ -26,7 +26,6 @@ export default async function DashboardPage() {
   const hasUnlimitedDecks = has({ feature: 'unlimited_decks' });
   const has3DeckLimit = has({ feature: '3_deck_limit' });
   const deckLimit = hasUnlimitedDecks ? Infinity : 3;
-  const canCreateMore = hasUnlimitedDecks || deckStats.length < 3;
   const isAtLimit = has3DeckLimit && deckStats.length >= 3;
 
   return (
@@ -81,7 +80,7 @@ export default async function DashboardPage() {
           <AlertTitle>Deck Limit Reached</AlertTitle>
           <AlertDescription className="flex items-center justify-between">
             <span>
-              You've reached the free tier limit of 3 decks. Upgrade to Pro for unlimited decks!
+              You&apos;ve reached the free tier limit of 3 decks. Upgrade to Pro for unlimited decks!
             </span>
             <Button asChild variant="default" size="sm" className="ml-4">
               <Link href="/pricing">Upgrade to Pro</Link>
@@ -96,7 +95,7 @@ export default async function DashboardPage() {
         {deckStats.length === 0 ? (
           <div className="bg-card border border-border rounded-lg p-12 text-center">
             <p className="text-muted-foreground mb-4">
-              You don't have any decks yet
+              You don&apos;t have any decks yet
             </p>
             <CreateDeckDialog>
               Create Your First Deck
